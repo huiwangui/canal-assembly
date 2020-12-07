@@ -2,16 +2,9 @@ package com.hxyc.canal.util;
 
 import com.alibaba.druid.pool.DruidDataSourceFactory;
 
-import org.springframework.context.annotation.PropertySource;
-import org.springframework.jdbc.core.JdbcTemplate;
-
 import javax.sql.DataSource;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
@@ -22,6 +15,7 @@ import java.util.Properties;
  * @Author admin
  * @Date 2020/11/5 15:07
  **/
+
 public class DruidUtils {
 
     private static DataSource ds;
@@ -82,11 +76,12 @@ public class DruidUtils {
         return ds;
     }
 
+
     public static void main(String[] args) {
         // JdbcTemplate会自动获取连接及归还连接
-        JdbcTemplate jdbcTemplate = new JdbcTemplate(DruidUtils.getDataSource());
-        String sql ="update t_user set salt =1 where user_id=66";
-        int update = jdbcTemplate.update(sql);//返回影响的行数
+        //JdbcTemplate jdbcTemplate = new JdbcTemplate(DruidUtils.getDataSource());
+        //String sql ="update t_user set salt =1 where user_id=66";
+        //int update = jdbcTemplate.update(sql);//返回影响的行数
     }
 
 

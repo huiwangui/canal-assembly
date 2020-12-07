@@ -5,11 +5,15 @@ import com.alibaba.otter.canal.client.CanalConnectors;
 import com.alibaba.otter.canal.protocol.CanalEntry;
 import com.alibaba.otter.canal.protocol.Message;
 import com.google.protobuf.InvalidProtocolBufferException;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.web.util.HtmlUtils;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.sql.JDBCType;
 import java.util.List;
 import java.util.Properties;
 
@@ -19,7 +23,10 @@ import java.util.Properties;
  * @Author admin
  * @Date 2020/11/10 14:19
  **/
+@Slf4j
 public class CanalUtils {
+
+    //public static final Logger log = LoggerFactory.getLogger(CanalUtils.class);
 
     //canal server 地址
     public static String SERVER_ADDRESS;
@@ -106,15 +113,26 @@ public class CanalUtils {
      * @param entry
      */
     private static void saveUpdateSql(CanalEntry.Entry entry) {
+        StringBuffer sql = null;
+        String newSql = null;
         try {
             CanalEntry.RowChange rowChange = CanalEntry.RowChange.parseFrom(entry.getStoreValue());
             List<CanalEntry.RowData> rowDatasList = rowChange.getRowDatasList();
             for (CanalEntry.RowData rowData : rowDatasList) {
                 List<CanalEntry.Column> newColumnList = rowData.getAfterColumnsList();
-                StringBuffer sql = new StringBuffer("update " + entry.getHeader().getSchemaName() + "." + entry.getHeader().getTableName() + " set ");
+                sql = new StringBuffer("update " + entry.getHeader().getSchemaName() + "." + entry.getHeader().getTableName() + " set ");
                 for (int i = 0; i < newColumnList.size(); i++) {
+
+                    String newValue = newColumnList.get(i).getValue();
+                    if(StringUtils.isBlank(newValue)){
+                        continue;
+                    }
+                    if(newColumnList.get(i).getValue().contains("<") && newColumnList.get(i).getValue().contains("</")){
+                        newValue = HtmlUtils.htmlEscapeHex(newColumnList.get(i).getValue());
+                    }
                     sql.append(" " + newColumnList.get(i).getName()
-                            + " = '" + newColumnList.get(i).getValue() + "'");
+                            + " = '" + newValue + "'");
+                            //+ " = '" + newColumnList.get(i).getValue() + "'");
                     if (i != newColumnList.size() - 1) {
                         sql.append(",");
                     }
@@ -124,29 +142,40 @@ public class CanalUtils {
                 for (CanalEntry.Column column : oldColumnList) {
                     if (column.getIsKey()) {
                         //暂时只支持单一主键
-                        sql.append(column.getName() + "=" + column.getValue());
+                        //判断数据类型
+                        if(column.getSqlType() == JDBCType.VARCHAR.getVendorTypeNumber()){
+                            sql.append(column.getName() + "='" + column.getValue()+"'");
+                        }else{
+                            sql.append(column.getName() + "=" + column.getValue());
+                        }
+
                         break;
                     }
                 }
-                jdbcTemplate.update(sql.toString());
+                newSql= sql.toString();
+                log.info("更新语句:"+newSql);
+                jdbcTemplate.update(newSql);
 
             }
-        } catch (InvalidProtocolBufferException e) {
+        } catch (Exception e) {
+            log.error("更新语句:"+newSql);
             e.printStackTrace();
         }
     }
 
     /**
-     * 保存删除语句 rowData.getAfterColumnsList()
+     * 保存删除语句
      *
      */
     private static void saveDeleteSql(CanalEntry.Entry entry) {
+        StringBuffer sql = null;
+        String newSql = null;
         try {
             CanalEntry.RowChange rowChange = CanalEntry.RowChange.parseFrom(entry.getStoreValue());
             List<CanalEntry.RowData> rowDatasList = rowChange.getRowDatasList();
             for (CanalEntry.RowData rowData : rowDatasList) {
                 List<CanalEntry.Column> columnList = rowData.getBeforeColumnsList();
-                StringBuffer sql = new StringBuffer("delete from " + entry.getHeader().getSchemaName() + "." + entry.getHeader().getTableName() + " where ");
+                sql = new StringBuffer("delete from " + entry.getHeader().getSchemaName() + "." + entry.getHeader().getTableName() + " where ");
                 for (CanalEntry.Column column : columnList) {
                     if (column.getIsKey()) {
                         //暂时只支持单一主键
@@ -154,10 +183,13 @@ public class CanalUtils {
                         break;
                     }
                 }
-                jdbcTemplate.update(sql.toString());
+                newSql= sql.toString();
+                log.info("删除语句:"+newSql);
+                jdbcTemplate.update(newSql);
 
             }
-        } catch (InvalidProtocolBufferException e) {
+        } catch (Exception e) {
+            log.error("删除语句:"+newSql);
             e.printStackTrace();
         }
     }
@@ -168,12 +200,14 @@ public class CanalUtils {
      * @param entry
      */
     private static void saveInsertSql(CanalEntry.Entry entry) {
+        StringBuffer sql = null;
+        String newSql = null;
         try {
             CanalEntry.RowChange rowChange = CanalEntry.RowChange.parseFrom(entry.getStoreValue());
             List<CanalEntry.RowData> rowDatasList = rowChange.getRowDatasList();
             for (CanalEntry.RowData rowData : rowDatasList) {
                 List<CanalEntry.Column> columnList = rowData.getAfterColumnsList();
-                StringBuffer sql = new StringBuffer("insert into " + entry.getHeader().getSchemaName() + "." + entry.getHeader().getTableName() + " (");
+                sql = new StringBuffer("insert into " + entry.getHeader().getSchemaName() + "." + entry.getHeader().getTableName() + " (");
                 for (int i = 0; i < columnList.size(); i++) {
                     if(StringUtils.isNotBlank(columnList.get(i).getValue())){
                         sql.append(columnList.get(i).getName());
@@ -190,7 +224,13 @@ public class CanalUtils {
                 sql.append(") VALUES (");
                 for (int i = 0; i < columnList.size(); i++) {
                     if(StringUtils.isNotBlank(columnList.get(i).getValue())){
-                        sql.append("'" + columnList.get(i).getValue() + "'");
+                        String newValue = columnList.get(i).getValue();
+                        if(columnList.get(i).getValue().contains("<")&&columnList.get(i).getValue().contains("</")){
+                            newValue = HtmlUtils.htmlEscapeHex(columnList.get(i).getValue());
+                        }
+
+                        sql.append("'" + newValue + "'");
+                        //sql.append("'" + columnList.get(i).getValue() + "'");
                         if (i != columnList.size() - 1) {
                             sql.append(",");
                         }
@@ -201,11 +241,15 @@ public class CanalUtils {
                 if(sql.toString().endsWith(",")){
                     sql.deleteCharAt(sql.length()-1);
                 }
+
                 sql.append(")");
-                jdbcTemplate.update(sql.toString());
+                newSql= sql.toString();
+                log.info("插入语句:"+newSql);
+                jdbcTemplate.update(newSql);
 
             }
-        } catch (InvalidProtocolBufferException e) {
+        } catch (Exception e) {
+            log.error("插入语句:"+newSql);
             e.printStackTrace();
         }
     }

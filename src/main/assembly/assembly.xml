@@ -23,20 +23,30 @@
         </fileSet>
 
         <fileSet>
-            <directory>src/assembly/bin</directory>
+            <directory>src/main/assembly/bin</directory>
             <outputDirectory>bin</outputDirectory>
             <includes>
                 <include>*</include>
             </includes>
+            <!--如果是脚本，一定要改为unix.如果是在windows上面编码，会出现dos编写问题-->
+            <lineEnding>unix</lineEnding>
+            <!-- 是否进行属性替换 -->
+            <filtered>true</filtered>
         </fileSet>
 
         <fileSet>
             <directory>src/main/resources</directory>
-            <!-- <outputDirectory>conf</outputDirectory>-->
-            <outputDirectory>lib</outputDirectory>
+             <outputDirectory>conf</outputDirectory>
+            <!--<outputDirectory>lib</outputDirectory>-->
             <includes>
                 <include>*.properties</include>
+                <include>*.xml</include>
             </includes>
+        </fileSet>
+
+        <fileSet>
+            <directory>src/assembly/logs</directory>
+            <outputDirectory>logs</outputDirectory>
         </fileSet>
 
     </fileSets>
