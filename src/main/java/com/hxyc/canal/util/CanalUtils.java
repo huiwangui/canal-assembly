@@ -137,6 +137,12 @@ public class CanalUtils {
                         sql.append(",");
                     }
                 }
+
+                //处理“where”前有“，”
+                if(sql.toString().endsWith(",")){
+                    sql.deleteCharAt(sql.length()-1);
+                }
+
                 sql.append(" where ");
                 List<CanalEntry.Column> oldColumnList = rowData.getBeforeColumnsList();
                 for (CanalEntry.Column column : oldColumnList) {
@@ -179,7 +185,12 @@ public class CanalUtils {
                 for (CanalEntry.Column column : columnList) {
                     if (column.getIsKey()) {
                         //暂时只支持单一主键
-                        sql.append(column.getName() + "=" + column.getValue());
+                        //判断数据类型
+                        if(column.getSqlType() == JDBCType.VARCHAR.getVendorTypeNumber()){
+                            sql.append(column.getName() + "='" + column.getValue()+"'");
+                        }else{
+                            sql.append(column.getName() + "=" + column.getValue());
+                        }
                         break;
                     }
                 }
