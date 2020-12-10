@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.sql.JDBCType;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 
@@ -42,6 +43,9 @@ public class CanalUtils {
     //canal server 的密码
     private static String PASSWORD = "";
 
+    //数据库表中字段是关键字
+    private static String KEYWORD = "";
+
     private static JdbcTemplate jdbcTemplate = new JdbcTemplate(DruidUtils.getDataSource());
 
     static {
@@ -52,6 +56,7 @@ public class CanalUtils {
             pro.load(is);
             SERVER_ADDRESS = pro.getProperty("canal.server.address");
             PORT = Integer.parseInt(pro.getProperty("canal.server.port"));
+            KEYWORD = pro.getProperty("mysql.table.keyword");
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -130,8 +135,16 @@ public class CanalUtils {
                     if(newColumnList.get(i).getValue().contains("<") && newColumnList.get(i).getValue().contains("</")){
                         newValue = HtmlUtils.htmlEscapeHex(newColumnList.get(i).getValue());
                     }
-                    sql.append(" " + newColumnList.get(i).getName()
-                            + " = '" + newValue + "'");
+                    //处理表中字段是关键字问题
+                    boolean isKeyword = Arrays.asList(KEYWORD.split(",")).contains(newColumnList.get(i).getName());
+                    if(isKeyword){
+                        sql.append(" `" + newColumnList.get(i).getName()
+                                + "` = '" + newValue + "'");
+                    }else{
+                        sql.append(" " + newColumnList.get(i).getName()
+                                + " = '" + newValue + "'");
+                    }
+
                             //+ " = '" + newColumnList.get(i).getValue() + "'");
                     if (i != newColumnList.size() - 1) {
                         sql.append(",");
@@ -185,12 +198,24 @@ public class CanalUtils {
                 for (CanalEntry.Column column : columnList) {
                     if (column.getIsKey()) {
                         //暂时只支持单一主键
-                        //判断数据类型
-                        if(column.getSqlType() == JDBCType.VARCHAR.getVendorTypeNumber()){
-                            sql.append(column.getName() + "='" + column.getValue()+"'");
-                        }else{
-                            sql.append(column.getName() + "=" + column.getValue());
+                        ////处理表中字段是关键字问题
+                        boolean isKeyword = Arrays.asList(KEYWORD.split(",")).contains(column.getName());
+                        if(isKeyword){
+                            //判断数据类型
+                            if(column.getSqlType() == JDBCType.VARCHAR.getVendorTypeNumber()){
+                                sql.append("`"+column.getName() + "`='" + column.getValue()+"'");
+                            }else{
+                                sql.append(column.getName() + "=" + column.getValue());
+                            }
+                        }else {
+                            //判断数据类型
+                            if(column.getSqlType() == JDBCType.VARCHAR.getVendorTypeNumber()){
+                                sql.append(column.getName() + "='" + column.getValue()+"'");
+                            }else{
+                                sql.append(column.getName() + "=" + column.getValue());
+                            }
                         }
+
                         break;
                     }
                 }
@@ -221,7 +246,14 @@ public class CanalUtils {
                 sql = new StringBuffer("insert into " + entry.getHeader().getSchemaName() + "." + entry.getHeader().getTableName() + " (");
                 for (int i = 0; i < columnList.size(); i++) {
                     if(StringUtils.isNotBlank(columnList.get(i).getValue())){
-                        sql.append(columnList.get(i).getName());
+                        //处理表中字段是关键字问题
+                        boolean isKeyword = Arrays.asList(KEYWORD.split(",")).contains(columnList.get(i).getName());
+                        if(isKeyword){
+                            sql.append("`"+columnList.get(i).getName()+"`");
+                        }else {
+                            sql.append(columnList.get(i).getName());
+                        }
+
                         if (i != columnList.size() - 1) {
                             sql.append(",");
                         }
